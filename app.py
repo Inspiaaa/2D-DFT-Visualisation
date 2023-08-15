@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 from PIL import Image
 import math
 
@@ -202,8 +201,6 @@ fig.canvas.mpl_connect("key_press_event", on_key)
 
 fig.suptitle("Click / Space / Right Arrow for next step")
 fig.canvas.set_window_title("2D FFT Visualisation")
-
-# animation = FuncAnimation(fig, animator.animate, init_func=lambda: None, frames=1000, interval=1000, repeat=False)
 
 draw_next_step()
 
