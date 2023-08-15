@@ -4,16 +4,21 @@ from matplotlib.animation import FuncAnimation
 from PIL import Image
 import math
 
+
+INPUT_IMAGE_PATH = "input/stop.jpg"
 IMAGE_SIZE = 256
 
 # Constant with which the sinusoid brightness is multiplied
 BRIGHTNESS_FACTOR = 2
 
-# A non-linear parameter that skews the brightness curve for sinusoids.
+# A non-linear parameter that skews the brightness curve of the sinusoids.
 # For values greater than 1 darker sinusoids appear brighter.
 BRIGHTNESS_BIAS = 2
 
+# Colormap used for displaying the 2D FFT
 COLORMAP = plt.get_cmap("viridis")
+
+# Colormap used for pixels that have been "visited", i.e. added to the image so far.
 VISITED_COLORMAP = plt.get_cmap("plasma")
 
 
@@ -25,37 +30,51 @@ def compute_2d_complex_sinusoid(size, freq_x, freq_y, coefficient):
 
 class Animator:
     def __init__(self, image_ax, layer_ax, fft_ax, fft):
-        self.size = len(fft)
         self.image_ax = image_ax
         self.layer_ax = layer_ax
         self.fft_ax = fft_ax
+
         self.fft = fft
+        self.size = len(fft)
 
+        # The image that is created iteratively.
         self.image = np.zeros((self.size, self.size), dtype=np.float)
-        # self.visited_fft_image = np.log10(np.abs(np.fft.fftshift(self.fft)) + 1)
+        self.image_imshow = image_ax.imshow(self.image, cmap="gray", vmin=0, vmax=255)
 
-        self.normalized_fft_brightness = np.log10(np.abs(self.fft) + 1)
-        self.normalized_fft_brightness /= np.max(self.normalized_fft_brightness)
+        # Each layer that is added to the image.
+        self.layer_imshow = layer_ax.imshow(np.zeros((self.size, self.size), dtype=np.float), cmap="gray")
 
-        self.visited_fft_image = np.fft.fftshift(self.normalized_fft_brightness)
-        self.visited_fft_image /= np.max(self.visited_fft_image)
-        self.visited_fft_image = COLORMAP(self.visited_fft_image)[:, :, :3]
+        # The FFT.
+        self.normalized_fft_image = np.log10(np.abs(self.fft) + 1)
+        self.normalized_fft_image /= np.max(self.normalized_fft_image)
+        self.normalized_fft_image = np.fft.fftshift(self.normalized_fft_image)
+
+        self.visited_fft_image = COLORMAP(self.normalized_fft_image)[:, :, :3]
 
         self.fft_ax.set_title("FFT")
-        self.fft_ax.imshow(self.visited_fft_image)
+        self.fft_imshow = fft_ax.imshow(self.image)
 
+        # Circle to highlight area on FFT to show location of current sinusoid.
+        middle_pos = (self.size // 2, self.size // 2)
+        self.highlight_circle = plt.Circle(
+            middle_pos,
+            radius=5,
+            fill=True,
+            linewidth=1,
+            facecolor="#ff0000aa",
+            edgecolor="#00000055"
+        )
+        self.highlight_circle_small = plt.Circle(middle_pos, radius=0.5, color="black")
+        self.fft_ax.add_patch(self.highlight_circle)
+        self.fft_ax.add_patch(self.highlight_circle_small)
+
+        # The order of the sinusoids to draw.
         frequency_count = math.ceil(self.size / 2)
-        self.frequencies_to_draw = [(x, y - 127) for x in range(frequency_count) for y in range(self.size)]
+        self.frequencies_to_draw = [(x, y - self.size//2) for x in range(frequency_count) for y in range(self.size)]
         self.frequencies_to_draw.sort(key=lambda pos: pos[0] ** 2 + pos[1] ** 2)
-
-    def init(self):
-        pass
 
     def animate(self, step):
         print(step)
-
-        self.image_ax.clear()
-        self.layer_ax.clear()
 
         x, y = self.frequencies_to_draw[step]
 
@@ -69,14 +88,17 @@ class Animator:
 
         # Display the images
         vmin, vmax = self.compute_value_range_for_brightness(x, y, coefficient)
-        self.layer_ax.imshow(np.real(sinusoid), cmap="gray", vmin=vmin, vmax=vmax)
-        self.image_ax.imshow(np.real(self.image), cmap="gray", vmin=0, vmax=255)
+        self.layer_imshow.set_data(sinusoid)
+        self.layer_imshow.set_clim(vmin=vmin, vmax=vmax)
+        self.image_imshow.set_data(self.image)
 
         self.layer_ax.set_title(f"Sinusoid freq x={x} y={y}")
 
-        self.highlight_current_area(x, y)
-        self.highlight_current_area(-x, y)
-        self.fft_ax.imshow(self.visited_fft_image)
+        self.mark_fft_pixel_as_visited(x, y)
+        self.mark_fft_pixel_as_visited(-x, y)
+        self.fft_imshow.set_data(self.visited_fft_image)
+
+        self.highlight_fft_pixel(x, y)
 
     def compute_value_range_for_brightness(self, x, y, coefficient):
         if x == y == 0:
@@ -93,27 +115,35 @@ class Animator:
 
         return vmin, vmax
 
-    def highlight_current_area(self, x, y):
-        pixel_color = VISITED_COLORMAP(self.normalized_fft_brightness[y, x])[:3]
+    def get_fft_pixel_position(self, x, y):
+        """ Returns the image pixel position corresponding to the component with the given x and y frequencies. """
         img_x = (x + self.size // 2) % self.size
         img_y = (y + self.size // 2) % self.size
-        self.visited_fft_image[img_x, img_y] = pixel_color
+        return img_x, img_y
+
+    def mark_fft_pixel_as_visited(self, x, y):
+        img_x, img_y = self.get_fft_pixel_position(x, y)
+        pixel_color = VISITED_COLORMAP(self.normalized_fft_image[img_y, img_x])[:3]
+        self.visited_fft_image[img_y, img_x] = pixel_color
+
+    def highlight_fft_pixel(self, x, y):
+        img_x, img_y = self.get_fft_pixel_position(x, y)
+        self.highlight_circle.set_center((img_x, img_y))
+        self.highlight_circle_small.set_center((img_x, img_y))
 
 
+image = Image.open(INPUT_IMAGE_PATH)
 
-image = Image.open("input/stop.jpg")
-
-# Convert to greyscale
+# Convert to greyscale.
 image = image.convert("L")
 image = image.resize((IMAGE_SIZE, IMAGE_SIZE))
-# image.show()
 
 image_data = np.array(image)
 image_fft = np.fft.fft2(image_data)
 
 # Layout
-# [ Original Image ] [ FFT Spectrum ]
-# [ Current Image  ] [ Sinusoid     ]
+#   [ Original Image ] [ FFT Spectrum ]
+#   [ Current Image  ] [ Sinusoid     ]
 
 fig, ax = plt.subplots(nrows=2, ncols=2)
 
@@ -128,8 +158,6 @@ animator = Animator(
 )
 
 current_step = 0
-
-
 def draw_next_step():
     global current_step
 
@@ -150,9 +178,9 @@ def on_key(event):
 
 fig.canvas.mpl_connect("button_press_event", on_click)
 fig.canvas.mpl_connect("key_press_event", on_key)
-fig.suptitle("Click / Space / Right for next step")
+fig.suptitle("Click / Space / Right Arrow for next step")
 
-# animation = FuncAnimation(fig, animator.animate, init_func=animator.init, frames=1000, interval=1000, repeat=False)
+# animation = FuncAnimation(fig, animator.animate, init_func=lambda: None, frames=1000, interval=1000, repeat=False)
 
 draw_next_step()
 
