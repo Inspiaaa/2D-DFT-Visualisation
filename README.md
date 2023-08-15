@@ -18,7 +18,9 @@ After setting the input path you can simply execute the app. By clicking anywher
 
 ![](docs/app.png)
 
-For larger images it can be helpful to zoom into a smaller area of the FFT spectrum using the `Zoom to rectangle` tool in the toolbar in the bottom of the app.
+**Tip:** For larger images it can be helpful to zoom into a smaller area of the FFT spectrum using the `Zoom to rectangle` tool in the toolbar in the bottom of the app.
+
+**Tip:** By holding the space bar or the right arrow key down, the app will automatically advance through the animation of adding sinusoids.
 
 # Explanation
 
