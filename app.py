@@ -6,20 +6,37 @@ import math
 
 
 INPUT_IMAGE_PATH = "input/stop.jpg"
+
+# Resizes the input image to the target square size. Non-square images will be distorted.
 IMAGE_SIZE = 256
 
-# Constant with which the sinusoid brightness is multiplied
+# A constant with which the sinusoid brightness is multiplied.
 BRIGHTNESS_FACTOR = 2
 
 # A non-linear parameter that skews the brightness curve of the sinusoids.
-# For values greater than 1 darker sinusoids appear brighter.
+# For values greater than 1 darker sinusoids (i.e. lower amplitude) appear brighter.
 BRIGHTNESS_BIAS = 2
 
-# Colormap used for displaying the 2D FFT
+# Colormap used for displaying the 2D FFT.
 COLORMAP = plt.get_cmap("viridis")
 
 # Colormap used for pixels that have been "visited", i.e. added to the image so far.
 VISITED_COLORMAP = plt.get_cmap("plasma")
+
+# Methods to traverse / walk the frequency domain...
+# ... by increasing Euclidean distance from the center, effectively resulting in increasing circle diameters.
+#     It is slightly confusing as it jumps around the center because of the discrete frequency bins (pixels)
+#     not lying perfectly on concentric circles.
+ORDER_BY_EUCLIDEAN_DIST = lambda pos: pos[0] ** 2 + pos[1] ** 2
+
+# ... by increasing Chebyshev distance from the center, effectively resulting in increasing sized squares.
+#     It is a more intuitive way to traverse the frequency domain, as concentric squares lie exactly on
+#     the frequency bins (pixels), thus avoiding the jumping around of the Euclidean distance.
+#     The Chebyshev distance is slightly modified in order to mostly follow a perimeter tracing path.
+ORDER_BY_CHEBYSHEV_DIST = lambda pos: max(abs(pos[0]), abs(pos[1]) + (0.1 if pos[1] > 0 else 0))
+
+# Determines the traversal order (either ORDER_BY_EUCLIDEAN_DIST or ORDER_BY_CHEBYSHEV_DIST or custom).
+SINUSOID_DRAW_ORDER = ORDER_BY_CHEBYSHEV_DIST
 
 
 def compute_2d_complex_sinusoid(size, freq_x, freq_y, coefficient):
@@ -70,10 +87,14 @@ class Animator:
 
         # The order of the sinusoids to draw.
         frequency_count = math.ceil(self.size / 2)
-        self.frequencies_to_draw = [(x, y - self.size//2) for x in range(frequency_count) for y in range(self.size)]
-        self.frequencies_to_draw.sort(key=lambda pos: pos[0] ** 2 + pos[1] ** 2)
+        self.frequencies_to_draw = [(x, y - frequency_count) for x in range(frequency_count) for y in range(self.size)]
+        self.frequencies_to_draw.sort(key=SINUSOID_DRAW_ORDER)
 
     def animate(self, step):
+        if step >= len(self.frequencies_to_draw):
+            print("Finished")
+            return
+
         print(step)
 
         x, y = self.frequencies_to_draw[step]
