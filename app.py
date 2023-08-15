@@ -199,7 +199,9 @@ def on_key(event):
 
 fig.canvas.mpl_connect("button_press_event", on_click)
 fig.canvas.mpl_connect("key_press_event", on_key)
+
 fig.suptitle("Click / Space / Right Arrow for next step")
+fig.canvas.set_window_title("2D FFT Visualisation")
 
 # animation = FuncAnimation(fig, animator.animate, init_func=lambda: None, frames=1000, interval=1000, repeat=False)
 
